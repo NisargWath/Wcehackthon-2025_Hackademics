@@ -11,6 +11,9 @@ import pandas as pd
 import sqlite3
 from werkzeug.utils import secure_filename
 import datetime
+import smtplib  # For sending emails
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 app = Flask(__name__)
 
@@ -257,22 +260,13 @@ def upload_materials(current_user):
     
     return render_template('upload_materials.html', user=current_user)
 
-@app.route('/about')
-def about():
-    return render_template('about.html')
+@app.route('/campus')
+def campus():
+    return render_template('campus.html')
 
-@app.route('/contact')
-def contact():
-    return render_template('contact.html')
-
-@app.route('/team')
-def team():
-    return render_template('team.html')
-
-@app.route('/testimonial')
-def testimonial():
-    return render_template('testimonial.html')
-
+@app.route('/intern')
+def intern():
+    return render_template('internship.html')
 @app.route('/upload_download')
 @token_required
 def upload_download(current_user):
@@ -442,6 +436,72 @@ def preview_file(filepath):
     return redirect(url_for('browse_results', year=directory))
 
 # Events System
+
+
+def send_email(recipient_email, subject, body):
+    msg = MIMEMultipart()
+    msg["From"] = "shambharkarv84@gmail.com"
+    msg["To"] = recipient_email
+    msg["Subject"] = subject
+
+    msg.attach(MIMEText(body, "plain"))
+
+    SMTP_SERVER = "smtp.gmail.com"
+    SMTP_PORT = 587
+    EMAIL_ADDRESS = "shambharkarv84@gmail.com"
+    EMAIL_PASSWORD = "lzzj yldn nuxk ofdr"  # This should be in an environment variable
+
+    try:
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        server.starttls()  # Secure connection
+        server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
+        server.sendmail(EMAIL_ADDRESS, recipient_email, msg.as_string())
+        server.quit()
+        return True
+    except Exception as e:
+        print(f"Error sending email to {recipient_email}: {e}")
+        raise
+
+@app.route('/send', methods=['GET', 'POST'])
+@token_required
+@teacher_required
+def sendEmail(current_user):
+    if request.method == 'POST':
+        title = request.form.get('title')
+        body = request.form.get('body')  # Changed from 'msg' to 'body'
+
+        if not title or not body:
+            flash('Please fill in both the subject and body', 'warning')
+            return redirect(url_for('sendEmail'))
+
+        # Fetch all users' emails from the database
+        users = User.query.all()
+        recipient_emails = [user.email for user in users]
+        
+        success_count = 0
+        failed_emails = []
+        
+        # Send email to each recipient
+        for email in recipient_emails:
+            try:
+                send_email(email, title, body)  # Pass title & body
+                success_count += 1
+            except Exception as e:
+                failed_emails.append(email)
+                print(f"Failed to send email to {email}: {str(e)}")
+        
+        if failed_emails:
+            flash(f'Successfully sent to {success_count} users. Failed to send to {len(failed_emails)} users.', 'warning')
+        else:
+            flash(f'Email successfully sent to all {success_count} users!', 'success')
+            
+        return redirect(url_for('sendEmail'))
+    
+    return render_template('Events/email.html', user=current_user)  # Updated template path
+
+
+
+
 @app.route('/events')
 def events_home():
     conn = sqlite3.connect('events.db')

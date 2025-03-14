@@ -1,0 +1,91 @@
+{% extends "base.html" %} {% block content %}
+<div class="row align-items-center hero-section">
+  <div class="col-lg-6">
+    <h1 class="display-4 fw-bold">Personalized Learning Pathways</h1>
+    <p class="lead mt-3">
+      Transform your learning experience with AI-powered pathways tailored to
+      your unique learning style, preferences, and goals.
+    </p>
+    <div class="features mt-4 mb-4">
+      <div class="feature-item">
+        <i class="fas fa-brain feature-icon"></i>
+        <span>Personalized to your learning style</span>
+      </div>
+      <div class="feature-item">
+        <i class="fas fa-route feature-icon"></i>
+        <span>Custom learning pathways</span>
+      </div>
+      <div class="feature-item">
+        <i class="fas fa-trophy feature-icon"></i>
+        <span>Gamified learning experience</span>
+      </div>
+    </div>
+    <a href="{{ url_for('assessment') }}" class="btn btn-primary btn-lg mt-3">
+      Start Your Learning Journey <i class="fas fa-arrow-right ms-2"></i>
+    </a>
+  </div>
+  <div class="col-lg-6 d-none d-lg-block">
+    <div class="hero-image-container">
+      <img
+        src="{{ url_for('static', filename='img/learning-hero.svg') }}"
+        alt="AI Learning"
+        class="img-fluid hero-image"
+      />
+    </div>
+  </div>
+</div>
+
+<div class="row mt-5 pt-5 how-it-works">
+  <div class="col-12 text-center mb-4">
+    <h2 class="section-title">How It Works</h2>
+  </div>
+
+  <div class="col-md-4">
+    <div class="step-card">
+      <div class="step-number">1</div>
+      <h3>Learning Assessment</h3>
+      <p>
+        Complete a brief assessment to identify your learning style,
+        preferences, and goals.
+      </p>
+      <i class="fas fa-clipboard-list step-icon"></i>
+    </div>
+  </div>
+
+  <div class="col-md-4">
+    <div class="step-card">
+      <div class="step-number">2</div>
+      <h3>Subject Selection</h3>
+      <p>
+        Choose the subject you want to learn and specify your time commitment.
+      </p>
+      <i class="fas fa-book step-icon"></i>
+    </div>
+  </div>
+
+  <div class="col-md-4">
+    <div class="step-card">
+      <div class="step-number">3</div>
+      <h3>AI-Generated Pathway</h3>
+      <p>
+        Receive a custom learning pathway with resources that match your
+        learning style.
+      </p>
+      <i class="fas fa-robot step-icon"></i>
+    </div>
+  </div>
+</div>
+
+<div class="row mt-5 pt-4 cta-section">
+  <div class="col-md-8 offset-md-2 text-center">
+    <h2 class="mb-4">Ready to transform your learning experience?</h2>
+    <p class="lead mb-4">
+      Start your personalized learning journey today and discover the most
+      effective way for YOU to learn.
+    </p>
+    <a href="{{ url_for('assessment') }}" class="btn btn-primary btn-lg"
+      >Get Started Now</a
+    >
+  </div>
+</div>
+{% endblock %}
