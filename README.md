@@ -1,4 +1,4 @@
-# ACADEASE-WCE-Hackathon# **AcadEase: The Ultimate Academic Companion**
+# **AcadEase: The Ultimate Academic Companion**
 
 ## **1. Introduction**
 
@@ -56,7 +56,42 @@ The system follows a **Flask-based architecture** with AI/ML components for pers
 | **Project Recommendation System** | AI-driven project-based learning suggestions based on student interests |
 | **Secure Authentication** | Secure OTP-based password reset functionality |
 
-## **4. Milestones & Timeline**
+## **4. Setup & Installation**
+
+### **4.1 Prerequisites**
+Ensure you have the following installed:
+- Python 3.8+
+- pip (Python package manager)
+- Virtual environment (optional but recommended)
+
+### **4.2 Installation Steps**
+1. Clone the repository:
+   ```sh
+   git clone https://github.com/your-repo/AcadEase.git
+   cd AcadEase
+   ```
+2. Create a virtual environment (optional but recommended):
+   ```sh
+   python -m venv venv
+   source venv/bin/activate  # On Windows use `venv\Scripts\activate`
+   ```
+3. Install dependencies:
+   ```sh
+   pip install -r requirements.txt
+   ```
+4. Set up the database (if using SQLite):
+   ```sh
+   flask db init
+   flask db migrate -m "Initial migration."
+   flask db upgrade
+   ```
+5. Run the application:
+   ```sh
+   flask run
+   ```
+6. Access the app at: `http://127.0.0.1:5000/`
+
+## **5. Milestones & Timeline**
 | **Milestone** | **Timeframe** |
 |--------------|--------------|
 | Requirement Gathering | 2 Hours |
@@ -68,9 +103,9 @@ The system follows a **Flask-based architecture** with AI/ML components for pers
 | Testing & Debugging | 2 Hours |
 | Final Deployment | 24 Hours |
 
-## **5. Business Model (Revenue Generation Plan)**
+## **6. Business Model (Revenue Generation Plan)**
 
-### **5.1 How We Plan to Make Money?**
+### **6.1 How We Plan to Make Money?**
 **Multi-channel revenue model targeting students, universities, and EdTech companies:**
 
 #### **(1) B2C (Students & Individual Learners)**
@@ -95,7 +130,7 @@ The system follows a **Flask-based architecture** with AI/ML components for pers
 - **Sponsored Career Tracks:**
   - Example: A company sponsors a "Machine Learning Engineer Pathway" for recruitment.
 
-## **6. Risk Analysis & Mitigation**
+## **7. Risk Analysis & Mitigation**
 
 | **Potential Risk** | **Impact** | **Mitigation Strategy** |
 |-------------------|------------|--------------------------|
@@ -106,7 +141,7 @@ The system follows a **Flask-based architecture** with AI/ML components for pers
 | **Competitive Market** | High | Focus on unique AI-driven learning pathways & strong partnerships. |
 | **Regulatory Compliance** | High | Ensure data privacy laws (GDPR, FERPA) compliance. |
 
-## **7. Conclusion**
+## **8. Conclusion**
 AcadEase aims to revolutionize the academic landscape with **AI-powered personalized learning, real-time event management, and seamless student-teacher collaboration**. By integrating AI-based recommendations, an event dashboard, and gamification elements, **AcadEase enhances engagement, accessibility, and efficiency** for both students and educators. 
 
 ### **Next Steps:**
