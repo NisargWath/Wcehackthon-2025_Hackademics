@@ -1,465 +1,501 @@
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify
-import os
-import json
+# app.py
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for
+import sqlite3
 import google.generativeai as genai
-from datetime import datetime, timedelta
-import random
+import os
+from dotenv import load_dotenv
+import json
+import datetime
+import markdown
+import re 
+
+# Load environment variables
+load_dotenv()
 
 # Configure Gemini API
-genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-generation_config = {
-    "temperature": 0.8,
-    "top_p": 0.95,
-    "top_k": 40,
-    "max_output_tokens": 4096,
-}
-model = genai.GenerativeModel(model_name="gemini-flash-1.5", generation_config=generation_config)
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+model = genai.GenerativeModel('gemini-1.5-flash')
 
-# Initialize Flask app
 app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", "default-dev-key")
+app.secret_key = os.getenv("SECRET_KEY", "default_secret_key")
 
-# In-memory database (replace with proper DB in production)
-users_db = {}
-learning_pathways = {}
-progress_data = {}
+# Database setup
+def init_db():
+    conn = sqlite3.connect('learning_pathways.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL
+    )
+    ''')
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS preferences (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        learning_style TEXT,
+        preferred_study_time INTEGER,
+        FOREIGN KEY (user_id) REFERENCES users (id)
+    )
+    ''')
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS pathways (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        topic TEXT,
+        pathway_data TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users (id)
+    )
+    ''')
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS progress (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        pathway_id INTEGER,
+        step_id TEXT,
+        completed BOOLEAN DEFAULT 0,
+        feedback TEXT,
+        completed_at TIMESTAMP,
+        FOREIGN KEY (pathway_id) REFERENCES pathways (id)
+    )
+    ''')
+    conn.commit()
+    conn.close()
 
-# Learning resources database
-resources = {
-    "Machine Learning": {
-        "visual": [
-            {"type": "video", "title": "Neural Networks Explained Visually", "url": "https://example.com/neural-networks-visual"},
-            {"type": "infographic", "title": "Machine Learning Algorithms Comparison", "url": "https://example.com/ml-algorithms-infographic"}
-        ],
-        "auditory": [
-            {"type": "podcast", "title": "Machine Learning Basics Explained", "url": "https://example.com/ml-basics-podcast"},
-            {"type": "audio_lecture", "title": "Deep Learning Fundamentals", "url": "https://example.com/deep-learning-audio"}
-        ],
-        "kinesthetic": [
-            {"type": "exercise", "title": "Implement a Simple Neural Network", "url": "https://example.com/neural-network-exercise"},
-            {"type": "project", "title": "Build a Recommender System", "url": "https://example.com/recommender-project"}
-        ]
-    },
-    "Web Development": {
-        "visual": [
-            {"type": "video", "title": "Responsive Web Design", "url": "https://example.com/responsive-design-video"},
-            {"type": "infographic", "title": "Front-end Framework Comparison", "url": "https://example.com/frontend-frameworks"}
-        ],
-        "auditory": [
-            {"type": "podcast", "title": "Modern JavaScript Features", "url": "https://example.com/modern-js-podcast"},
-            {"type": "audio_lecture", "title": "Web Security Fundamentals", "url": "https://example.com/web-security-audio"}
-        ],
-        "kinesthetic": [
-            {"type": "exercise", "title": "Build a Dynamic Form with Validation", "url": "https://example.com/form-validation-exercise"},
-            {"type": "project", "title": "Create a Full-Stack Web Application", "url": "https://example.com/fullstack-project"}
-        ]
-    },
-    "Data Structures": {
-        "visual": [
-            {"type": "video", "title": "Trees and Graphs Visualized", "url": "https://example.com/trees-graphs-video"},
-            {"type": "infographic", "title": "Big-O Complexity Chart", "url": "https://example.com/big-o-chart"}
-        ],
-        "auditory": [
-            {"type": "podcast", "title": "Data Structures Deep Dive", "url": "https://example.com/data-structures-podcast"},
-            {"type": "audio_lecture", "title": "Algorithms Analysis", "url": "https://example.com/algorithms-audio"}
-        ],
-        "kinesthetic": [
-            {"type": "exercise", "title": "Implement a Hash Table", "url": "https://example.com/hash-table-exercise"},
-            {"type": "project", "title": "Build a Pathfinding Visualizer", "url": "https://example.com/pathfinding-project"}
-        ]
-    }
-}
+# Initialize database
+init_db()
+
+# Helper function to get or create guest user
+def get_guest_user():
+    if 'user_id' not in session:
+        # Create a guest user session
+        session['user_id'] = 1  # Using ID 1 for guest user
+        session['username'] = 'guest'
+    return session['user_id']
 
 @app.route('/')
 def index():
+    get_guest_user()  # Ensure user session exists
     return render_template('index.html')
 
-@app.route('/assessment', methods=['GET', 'POST'])
-def assessment():
+@app.route('/register', methods=['GET', 'POST'])
+def register():
     if request.method == 'POST':
-        # Store assessment data in session
-        session['learning_style'] = request.form.get('learning_style')
-        session['study_mode'] = request.form.get('study_mode')
-        session['time_commitment'] = int(request.form.get('time_commitment'))
-        session['motivation_level'] = request.form.get('motivation_level')
+        username = request.form['username']
+        password = request.form['password']
         
-        # Proceed to subject selection
-        return redirect(url_for('subject_selection'))
+        conn = sqlite3.connect('learning_pathways.db')
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute("INSERT INTO users (username, password) VALUES (?, ?)", 
+                        (username, password))
+            conn.commit()
+            return jsonify({"success": True, "message": "Registration successful!"})
+        except sqlite3.IntegrityError:
+            return jsonify({"success": False, "message": "Username already exists."})
+        finally:
+            conn.close()
     
-    return render_template('assessment.html')
+    return render_template('register.html')
 
-@app.route('/subject-selection', methods=['GET', 'POST'])
-def subject_selection():
+@app.route('/login', methods=['GET', 'POST'])
+def login():
     if request.method == 'POST':
-        subject = request.form.get('subject')
-        session['subject'] = subject
+        username = request.form['username']
+        password = request.form['password']
         
-        # Generate learning pathway
-        generate_pathway(session['learning_style'], session['study_mode'], 
-                        session['time_commitment'], session['motivation_level'], subject)
+        conn = sqlite3.connect('learning_pathways.db')
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, password FROM users WHERE username = ?", (username,))
+        user = cursor.fetchone()
+        conn.close()
         
-        return redirect(url_for('dashboard'))
+        if user and user[1] == password:
+            session['user_id'] = user[0]
+            session['username'] = username
+            return jsonify({"success": True})
+        else:
+            return jsonify({"success": False, "message": "Invalid credentials"})
     
-    # List of available subjects
-    subjects = ["Machine Learning", "Web Development", "Data Structures"]
-    return render_template('subject_selection.html', subjects=subjects)
+    return render_template('login.html')
 
-def generate_pathway(learning_style, study_mode, time_commitment, motivation_level, subject):
-    """Generate personalized learning pathway using Gemini AI"""
-    user_id = session.get('user_id', str(random.randint(1000, 9999)))
-    session['user_id'] = user_id
+@app.route('/preferences', methods=['GET', 'POST'])
+def preferences():
+    user_id = get_guest_user()  # No login check, just get a user ID
     
-    # Prepare prompt for Gemini
+    if request.method == 'POST':
+        learning_style = request.form['learning_style']
+        preferred_study_time = request.form['preferred_study_time']
+        
+        conn = sqlite3.connect('learning_pathways.db')
+        cursor = conn.cursor()
+        
+        # Check if preferences already exist
+        cursor.execute("SELECT id FROM preferences WHERE user_id = ?", (user_id,))
+        pref = cursor.fetchone()
+        
+        if pref:
+            cursor.execute("""
+                UPDATE preferences 
+                SET learning_style = ?, preferred_study_time = ?
+                WHERE user_id = ?
+            """, (learning_style, preferred_study_time, user_id))
+        else:
+            cursor.execute("""
+                INSERT INTO preferences (user_id, learning_style, preferred_study_time)
+                VALUES (?, ?, ?)
+            """, (user_id, learning_style, preferred_study_time))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({"success": True, "message": "Preferences saved successfully"})
+    
+    # Get existing preferences
+    conn = sqlite3.connect('learning_pathways.db')
+    cursor = conn.cursor()
+    cursor.execute("SELECT learning_style, preferred_study_time FROM preferences WHERE user_id = ?", 
+                (user_id,))
+    prefs = cursor.fetchone()
+    conn.close()
+    
+    return render_template('preferences.html', preferences=prefs)
+
+@app.route('/generate_pathway', methods=['POST'])
+def generate_pathway():
+    user_id = get_guest_user()  # No login check, just get a user ID
+    
+    topic = request.form['topic']
+    learning_style = request.form['learning_style']
+    study_time = request.form['study_time']
+    
+    # Get user preferences if not provided
+    if not learning_style or not study_time:
+        conn = sqlite3.connect('learning_pathways.db')
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT learning_style, preferred_study_time 
+            FROM preferences 
+            WHERE user_id = ?
+        """, (user_id,))
+        prefs = cursor.fetchone()
+        conn.close()
+        
+        if prefs:
+            learning_style = learning_style or prefs[0]
+            study_time = study_time or prefs[1]
+    
+    # Generate learning pathway using Gemini AI
     prompt = f"""
-    Create a personalized learning pathway for a student with the following characteristics:
-    - Learning Style: {learning_style}
-    - Preferred Study Mode: {study_mode}
-    - Time Commitment: {time_commitment} hours per week
-    - Motivation Level: {motivation_level}
-    - Subject: {subject}
+    Create a personalized learning pathway for a student with the following details:
     
-    The pathway should include:
-    1. A weekly breakdown of topics based on {time_commitment} hours per week for 8 weeks
-    2. Resource recommendations tailored to {learning_style} learning style
-    3. Weekly assessments and progress checks
-    4. Gamification elements to maintain engagement
+    Topic: {topic}
+    Learning Style: {learning_style}
+    Available Study Time: {study_time} hours per week
     
-    Format the output as JSON with the following structure:
-    {
-        "subject": "Subject Name",
-        "duration_weeks": 8,
-        "weekly_plan": [
-            {
-                "week": 1,
-                "topics": ["Topic 1", "Topic 2"],
+    Please structure your response as a JSON object with the following format:
+    {{
+        "topic": "The main topic",
+        "overview": "Brief overview of the topic and learning goals",
+        "estimated_completion_time": "Total estimated time in weeks",
+        "modules": [
+            {{
+                "id": "module1",
+                "title": "Module Title",
+                "description": "Brief description of this module",
+                "estimated_time": "Time in hours",
                 "resources": [
-                    {"type": "resource_type", "title": "Resource Title", "url": "URL", "duration_minutes": 30}
+                    {{
+                        "type": "video/article/exercise/quiz",
+                        "title": "Resource Title",
+                        "description": "Brief description",
+                        "estimated_time": "Time in minutes"
+                    }}
                 ],
-                "assessments": [
-                    {"title": "Assessment Title", "type": "quiz/project/reflection"}
+                "activities": [
+                    {{
+                        "id": "activity1",
+                        "title": "Activity Title",
+                        "description": "What to do",
+                        "estimated_time": "Time in minutes"
+                    }}
                 ],
-                "gamification": {"challenge": "Weekly Challenge", "badge": "Badge Name"}
-            }
-        ]
-    }
+                "assessment": {{
+                    "type": "quiz/project/reflection",
+                    "description": "Assessment description"
+                }}
+            }}
+        ],
+        "next_steps": "Suggestions for what to learn after completing this pathway"
+    }}
+    
+    Adapt the content to the learning style: {learning_style}.
+    Make sure all time estimates are realistic for the {study_time} hours per week availability.
     """
     
     try:
-        # Call Gemini AI
         response = model.generate_content(prompt)
+        print(response)
+        pathway_data = response.text
         
-        # Extract and parse JSON from response
-        response_text = response.text
-        
-        # Find JSON content within the response
-        json_start = response_text.find('{')
-        json_end = response_text.rfind('}') + 1
-        
-        if json_start >= 0 and json_end > json_start:
-            json_content = response_text[json_start:json_end]
-            pathway = json.loads(json_content)
-        else:
-            # Fallback if JSON parsing fails
-            pathway = generate_fallback_pathway(subject, learning_style, time_commitment)
+        # Extract JSON from the response
+        try:
+            # Try to find JSON in the response if it's wrapped in markdown code blocks
+            if "```json" in pathway_data:
+                json_start = pathway_data.find("```json") + 7
+                json_end = pathway_data.find("```", json_start)
+                pathway_json = pathway_data[json_start:json_end].strip()
+            else:
+                pathway_json = pathway_data.strip()
             
-        # Post-process the pathway
-        enhance_pathway_with_resources(pathway, subject, learning_style)
-        
-        # Store the pathway
-        learning_pathways[user_id] = pathway
-        
-        # Initialize progress data
-        initialize_progress_data(user_id, pathway)
-        
-        return pathway
-    
-    except Exception as e:
-        print(f"Error generating pathway: {e}")
-        # Fallback if Gemini API fails
-        pathway = generate_fallback_pathway(subject, learning_style, time_commitment)
-        learning_pathways[user_id] = pathway
-        initialize_progress_data(user_id, pathway)
-        return pathway
-
-def generate_fallback_pathway(subject, learning_style, time_commitment):
-    """Generate a basic fallback pathway if the AI generation fails"""
-    # Basic structure for an 8-week course
-    pathway = {
-        "subject": subject,
-        "duration_weeks": 8,
-        "weekly_plan": []
-    }
-    
-    # Generic topics for each subject
-    topics = {
-        "Machine Learning": [
-            ["Introduction to ML", "Types of Machine Learning"],
-            ["Linear Regression", "Gradient Descent"],
-            ["Classification", "Logistic Regression"],
-            ["Decision Trees", "Random Forests"],
-            ["Neural Networks Basics", "Activation Functions"],
-            ["Convolutional Neural Networks", "Image Classification"],
-            ["Recurrent Neural Networks", "Natural Language Processing"],
-            ["Reinforcement Learning", "ML Ethics and Future"]
-        ],
-        "Web Development": [
-            ["HTML Basics", "CSS Fundamentals"],
-            ["JavaScript Essentials", "DOM Manipulation"],
-            ["Responsive Design", "CSS Frameworks"],
-            ["JavaScript Frameworks Intro", "React Basics"],
-            ["React State Management", "Component Lifecycle"],
-            ["Backend Basics", "RESTful APIs"],
-            ["Database Integration", "Authentication"],
-            ["Deployment", "Web Performance Optimization"]
-        ],
-        "Data Structures": [
-            ["Arrays and Strings", "Time and Space Complexity"],
-            ["Linked Lists", "Stacks and Queues"],
-            ["Hash Tables", "Sets and Maps"],
-            ["Trees: Binary Trees", "Binary Search Trees"],
-            ["Heaps", "Priority Queues"],
-            ["Graphs", "Graph Traversal"],
-            ["Sorting Algorithms", "Searching Algorithms"],
-            ["Dynamic Programming", "Advanced Problem Solving"]
-        ]
-    }
-    
-    # Create weekly plan
-    subject_topics = topics.get(subject, [["Basics 1", "Basics 2"]] * 8)
-    
-    for week in range(8):
-        weekly_topics = subject_topics[week] if week < len(subject_topics) else ["Advanced Topic 1", "Advanced Topic 2"]
-        
-        week_plan = {
-            "week": week + 1,
-            "topics": weekly_topics,
-            "resources": [
-                {"type": learning_style, "title": f"{weekly_topics[0]} Resource", 
-                 "url": f"https://example.com/{subject.lower().replace(' ', '-')}/{weekly_topics[0].lower().replace(' ', '-')}",
-                 "duration_minutes": 30}
-            ],
-            "assessments": [
-                {"title": f"Week {week+1} Quiz", "type": "quiz"},
-                {"title": f"Week {week+1} Project", "type": "project"}
-            ],
-            "gamification": {
-                "challenge": f"Complete all Week {week+1} materials",
-                "badge": f"Week {week+1} Champion"
-            }
-        }
-        
-        pathway["weekly_plan"].append(week_plan)
-    
-    return pathway
-
-def enhance_pathway_with_resources(pathway, subject, learning_style):
-    """Enhance the AI-generated pathway with curated resources from our database"""
-    # Get relevant resources for this subject and learning style
-    subject_resources = resources.get(subject, {})
-    style_resources = subject_resources.get(learning_style.lower(), [])
-    
-    if not style_resources:
-        return pathway
-    
-    # Add some of our curated resources to the pathway
-    for week_plan in pathway["weekly_plan"]:
-        # Add 1-2 curated resources that match the learning style
-        for resource in style_resources[:2]:
-            week_plan["resources"].append({
-                "type": resource["type"],
-                "title": resource["title"],
-                "url": resource["url"],
-                "duration_minutes": random.randint(20, 60)
+            # Validate JSON
+            parsed_json = json.loads(pathway_json)
+            
+            # Save pathway to database
+            conn = sqlite3.connect('learning_pathways.db')
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO pathways (user_id, topic, pathway_data)
+                VALUES (?, ?, ?)
+            """, (user_id, topic, json.dumps(parsed_json)))
+            
+            pathway_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+            
+            return jsonify({
+                "success": True, 
+                "pathway_id": pathway_id,
+                "pathway": parsed_json
             })
-            
-    return pathway
+        except json.JSONDecodeError:
+            return jsonify({
+                "success": False, 
+                "message": "Failed to parse AI response as JSON",
+                "raw_response": pathway_data
+            })
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
 
-def initialize_progress_data(user_id, pathway):
-    """Initialize progress tracking data for a user"""
-    progress_data[user_id] = {
-        "current_week": 1,
-        "completion": {
-            "resources": {},
-            "assessments": {}
-        },
-        "badges_earned": [],
-        "streak_days": 0,
-        "last_active": datetime.now().strftime("%Y-%m-%d"),
-        "total_points": 0
-    }
+@app.route('/pathway/<int:pathway_id>')
+def view_pathway(pathway_id):
+    user_id = get_guest_user()  # No login check, just get a user ID
+    
+    conn = sqlite3.connect('learning_pathways.db')
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT pathway_data FROM pathways 
+        WHERE id = ?
+    """, (pathway_id,))  # Removed user_id filter to allow any user to view any pathway
+    
+    pathway = cursor.fetchone()
+    conn.close()
+    
+    if not pathway:
+        return "Pathway not found", 404
+    
+    pathway_data = json.loads(pathway[0])
+    
+    return render_template('pathway.html', pathway=pathway_data, pathway_id=pathway_id)
+
+@app.route('/update_progress', methods=['POST'])
+def update_progress():
+    user_id = get_guest_user()  # No login check, just get a user ID
+    
+    pathway_id = request.form['pathway_id']
+    step_id = request.form['step_id']
+    completed = request.form['completed'] == 'true'
+    feedback = request.form.get('feedback', '')
+    
+    conn = sqlite3.connect('learning_pathways.db')
+    cursor = conn.cursor()
+    
+    # Check if progress entry exists
+    cursor.execute("""
+        SELECT id FROM progress 
+        WHERE pathway_id = ? AND step_id = ?
+    """, (pathway_id, step_id))
+    
+    progress = cursor.fetchone()
+    
+    if progress:
+        if completed:
+            cursor.execute("""
+                UPDATE progress 
+                SET completed = ?, feedback = ?, completed_at = ?
+                WHERE pathway_id = ? AND step_id = ?
+            """, (completed, feedback, datetime.datetime.now(), pathway_id, step_id))
+        else:
+            cursor.execute("""
+                UPDATE progress 
+                SET completed = ?, feedback = ?, completed_at = NULL
+                WHERE pathway_id = ? AND step_id = ?
+            """, (completed, feedback, pathway_id, step_id))
+    else:
+        if completed:
+            cursor.execute("""
+                INSERT INTO progress (pathway_id, step_id, completed, feedback, completed_at)
+                VALUES (?, ?, ?, ?, ?)
+            """, (pathway_id, step_id, completed, feedback, datetime.datetime.now()))
+        else:
+            cursor.execute("""
+                INSERT INTO progress (pathway_id, step_id, completed, feedback)
+                VALUES (?, ?, ?, ?)
+            """, (pathway_id, step_id, completed, feedback))
+    
+    conn.commit()
+    conn.close()
+    
+    return jsonify({"success": True})
+
+@app.route('/get_progress/<int:pathway_id>')
+def get_progress(pathway_id):
+    user_id = get_guest_user()  # No login check, just get a user ID
+    
+    conn = sqlite3.connect('learning_pathways.db')
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT step_id, completed, feedback, completed_at 
+        FROM progress 
+        WHERE pathway_id = ?
+    """, (pathway_id,))
+    
+    progress_data = cursor.fetchall()
+    conn.close()
+    
+    progress = {}
+    for item in progress_data:
+        progress[item[0]] = {
+            "completed": bool(item[1]),
+            "feedback": item[2],
+            "completed_at": item[3]
+        }
+    
+    return jsonify({"success": True, "progress": progress})
 
 @app.route('/dashboard')
 def dashboard():
-    user_id = session.get('user_id')
-    if not user_id or user_id not in learning_pathways:
-        return redirect(url_for('assessment'))
+    user_id = get_guest_user()  # No login check, just get a user ID
     
-    pathway = learning_pathways[user_id]
-    progress = progress_data[user_id]
+    conn = sqlite3.connect('learning_pathways.db')
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT id, topic, created_at 
+        FROM pathways 
+        WHERE user_id = ?
+        ORDER BY created_at DESC
+    """, (user_id,))
     
-    # Get current week's plan
-    current_week = progress["current_week"]
-    week_plan = next((w for w in pathway["weekly_plan"] if w["week"] == current_week), None)
+    pathways = cursor.fetchall()
     
-    return render_template('dashboard.html',
-                          subject=pathway["subject"],
-                          learning_style=session.get('learning_style'),
-                          study_mode=session.get('study_mode'),
-                          current_week=current_week,
-                          total_weeks=pathway["duration_weeks"],
-                          week_plan=week_plan,
-                          progress=progress)
-
-@app.route('/mark-complete', methods=['POST'])
-def mark_complete():
-    user_id = session.get('user_id')
-    if not user_id:
-        return jsonify({"error": "User not authenticated"}), 401
-    
-    data = request.json
-    item_type = data.get('type')  # 'resource' or 'assessment'
-    item_id = data.get('id')
-    
-    if not item_type or not item_id:
-        return jsonify({"error": "Missing parameters"}), 400
-    
-    # Update completion status
-    if item_type == 'resource':
-        progress_data[user_id]["completion"]["resources"][item_id] = True
-        progress_data[user_id]["total_points"] += 10
-    elif item_type == 'assessment':
-        progress_data[user_id]["completion"]["assessments"][item_id] = True
-        progress_data[user_id]["total_points"] += 20
-    
-    # Update streak
-    today = datetime.now().strftime("%Y-%m-%d")
-    last_active = datetime.strptime(progress_data[user_id]["last_active"], "%Y-%m-%d")
-    if (datetime.now() - last_active).days <= 1:
-        progress_data[user_id]["streak_days"] += 1
-    else:
-        progress_data[user_id]["streak_days"] = 1
-    progress_data[user_id]["last_active"] = today
-    
-    # Check if week is complete
-    check_week_completion(user_id)
-    
-    return jsonify({"success": True, "points": progress_data[user_id]["total_points"]})
-
-def check_week_completion(user_id):
-    """Check if current week is complete and award badges"""
-    pathway = learning_pathways[user_id]
-    progress = progress_data[user_id]
-    current_week = progress["current_week"]
-    
-    # Get current week's plan
-    week_plan = next((w for w in pathway["weekly_plan"] if w["week"] == current_week), None)
-    if not week_plan:
-        return
-    
-    # Check if all resources and assessments are complete
-    resources_complete = True
-    for i, resource in enumerate(week_plan["resources"]):
-        resource_id = f"week{current_week}_resource{i}"
-        if resource_id not in progress["completion"]["resources"]:
-            resources_complete = False
-            break
-    
-    assessments_complete = True
-    for i, assessment in enumerate(week_plan["assessments"]):
-        assessment_id = f"week{current_week}_assessment{i}"
-        if assessment_id not in progress["completion"]["assessments"]:
-            assessments_complete = False
-            break
-    
-    # If week is complete, award badge and move to next week
-    if resources_complete and assessments_complete:
-        badge = week_plan["gamification"]["badge"]
-        if badge not in progress["badges_earned"]:
-            progress["badges_earned"].append(badge)
-            progress["total_points"] += 50
+    # Get progress for each pathway
+    pathways_with_progress = []
+    for pathway in pathways:
+        pathway_id = pathway[0]
         
-        # Move to next week if not already at the end
-        if current_week < pathway["duration_weeks"]:
-            progress["current_week"] += 1
+        # Get total steps
+        cursor.execute("""
+            SELECT pathway_data FROM pathways WHERE id = ?
+        """, (pathway_id,))
+        pathway_data = json.loads(cursor.fetchone()[0])
+        
+        total_steps = 0
+        for module in pathway_data.get('modules', []):
+            # Count resources
+            total_steps += len(module.get('resources', []))
+            # Count activities
+            total_steps += len(module.get('activities', []))
+            # Count assessment (if exists)
+            if 'assessment' in module:
+                total_steps += 1
+        
+        # Get completed steps
+        cursor.execute("""
+            SELECT COUNT(*) FROM progress 
+            WHERE pathway_id = ? AND completed = 1
+        """, (pathway_id,))
+        completed_steps = cursor.fetchone()[0]
+        
+        # Calculate progress percentage
+        progress_percentage = 0
+        if total_steps > 0:
+            progress_percentage = (completed_steps / total_steps) * 100
+        
+        pathways_with_progress.append({
+            'id': pathway_id,
+            'topic': pathway[1],
+            'created_at': pathway[2],
+            'total_steps': total_steps,
+            'completed_steps': completed_steps,
+            'progress_percentage': progress_percentage
+        })
+    
+    conn.close()
+    
+    return render_template('dashboard.html', pathways=pathways_with_progress)
 
-@app.route('/update-learning-preferences', methods=['POST'])
-def update_learning_preferences():
-    user_id = session.get('user_id')
-    if not user_id:
-        return jsonify({"error": "User not authenticated"}), 401
-    
-    # Update session with new preferences
-    session['learning_style'] = request.form.get('learning_style', session.get('learning_style'))
-    session['study_mode'] = request.form.get('study_mode', session.get('study_mode'))
-    session['time_commitment'] = int(request.form.get('time_commitment', session.get('time_commitment')))
-    session['motivation_level'] = request.form.get('motivation_level', session.get('motivation_level'))
-    
-    # Regenerate pathway with updated preferences
-    subject = learning_pathways[user_id]["subject"]
-    generate_pathway(session['learning_style'], session['study_mode'], 
-                    session['time_commitment'], session['motivation_level'], subject)
-    
-    return redirect(url_for('dashboard'))
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('index'))
 
-@app.route('/get-recommendations', methods=['POST'])
-def get_recommendations():
-    user_id = session.get('user_id')
-    if not user_id:
-        return jsonify({"error": "User not authenticated"}), 401
-    
-    # Get current performance data
-    difficulty_rating = int(request.form.get('difficulty_rating', 3))
-    interest_rating = int(request.form.get('interest_rating', 3))
-    
-    # Use Gemini to generate adaptive recommendations
-    prompt = f"""
-    Based on the following user feedback:
-    - Difficulty Level (1-5): {difficulty_rating} (5 being very difficult)
-    - Interest Level (1-5): {interest_rating} (5 being very interesting)
-    - Learning Style: {session.get('learning_style')}
-    
-    Generate 1-2 adaptive recommendations to better support this learner studying 
-    {learning_pathways[user_id]["subject"]} in week {progress_data[user_id]["current_week"]}.
-    
-    Format the output as a JSON list of recommendations:
-    [
-        {{"recommendation": "Specific advice", "resource": "Additional resource name", "url": "URL"}}
-    ]
-    """
-    
-    try:
-        # Call Gemini AI
-        response = model.generate_content(prompt)
+# Modify the chatbot route to include pathway context
+@app.route('/chatbot/<int:pathway_id>')
+def chatbot(pathway_id=None):
+    # Get pathway data if pathway_id is provided
+    pathway_data = None
+    if pathway_id:
+        conn = sqlite3.connect('learning_pathways.db')
+        cursor = conn.cursor()
+        cursor.execute("SELECT pathway_data FROM pathways WHERE id = ?", (pathway_id,))
+        result = cursor.fetchone()
+        conn.close()
         
-        # Extract and parse JSON from response
-        response_text = response.text
-        
-        # Find JSON content within the response
-        json_start = response_text.find('[')
-        json_end = response_text.rfind(']') + 1
-        
-        if json_start >= 0 and json_end > json_start:
-            json_content = response_text[json_start:json_end]
-            recommendations = json.loads(json_content)
-        else:
-            # Fallback if JSON parsing fails
-            recommendations = [
-                {"recommendation": "Try breaking down the content into smaller chunks", 
-                 "resource": "Study techniques for complex topics", 
-                 "url": "https://example.com/study-techniques"}
-            ]
-            
-        return jsonify({"recommendations": recommendations})
+        if result:
+            pathway_data = json.loads(result[0])
     
-    except Exception as e:
-        print(f"Error generating recommendations: {e}")
-        # Fallback recommendations
-        recommendations = [
-            {"recommendation": "Review foundational concepts before proceeding", 
-             "resource": "Fundamentals review", 
-             "url": "https://example.com/fundamentals"}
-        ]
-        return jsonify({"recommendations": recommendations})
+    return render_template('chatbot.html', pathway_id=pathway_id, pathway_data=pathway_data)
+
+# Update the chat endpoint to include pathway context in the prompt
+@app.route('/chat', methods=['POST'])
+def chat():
+    user_message = request.json.get('message', '')
+    pathway_id = request.json.get('pathway_id')
+    
+    pathway_context = ""
+    if pathway_id:
+        # Fetch pathway data from the database
+        conn = sqlite3.connect('learning_pathways.db')
+        cursor = conn.cursor()
+        cursor.execute("SELECT pathway_data FROM pathways WHERE id = ?", (pathway_id,))
+        result = cursor.fetchone()
+        print(result)
+        conn.close()
+        
+        if result:
+            pathway_data = json.loads(result[0])
+            # Create a summary of the pathway to use as context
+            print(pathway_data.get('topic'))
+            pathway_context = f"""
+            generate text without bolding the text  in 100-200 words
+            Context for this conversation:
+            The user is working on a learning pathway with the following details:
+            Topic: {pathway_data.get('topic')}
+            Overview: {pathway_data.get('overview')}
+            Modules: {', '.join([module.get('title') for module in pathway_data.get('modules', [])])}
+            """
+    
+    # Create a chat session
+    chat_session = model.start_chat(history=[])
+    
+    # Generate a response with pathway context
+    full_prompt = f"{pathway_context}\n\nUser question: {user_message}\n\nPlease provide a helpful response based on the learning pathway context. Keep your answer concise and focused on the user's learning journey."
+    
+    response = chat_session.send_message(full_prompt)
+    
+    return jsonify({'response': response.text})
 
 if __name__ == '__main__':
-    app.run(debug=True, port=8000)
+    app.run(debug=True)

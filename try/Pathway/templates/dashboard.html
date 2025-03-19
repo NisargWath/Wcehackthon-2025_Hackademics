@@ -1,434 +1,254 @@
-{% extends "base.html" %}
+<!-- templates/dashboard.html -->
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dashboard - Education Portal</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css"
+    />
 
-{% block content %}
-<div class="dashboard-header mb-4">
-    <div class="row align-items-center">
+    <link
+      href="/static/vendor/bootstrap/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+
+    <!-- Additional CSS Files -->
+    <link rel="stylesheet" href="/static/css/fontawesome.css" />
+    <link rel="stylesheet" href="/static/css/templatemo-grad-school.css" />
+    <link rel="stylesheet" href="/static/css/owl.css" />
+    <link rel="stylesheet" href="/static/css/lightbox.css" />
+
+    <header class="main-header clearfix custom-bg" role="header">
+      <div class="logo">
+        <a href="http://127.0.0.1:7000/">
+          <a href="http://127.0.0.1:7000/"><em>Acad</em>Ease</a>
+        </a>
+      </div>
+
+      <a href="/" class="menu-link"><i class="fa fa-bars"></i></a>
+      <nav id="menu" class="main-nav" role="navigation">
+        <ul class="main-menu">
+          <li><a href="http://127.0.0.1:7000/dashboard">Dashboard</a></li>
+
+          <li><a href="/preferences">Preferences</a></li>
+        </ul>
+      </nav>
+    </header>
+
+    <style>
+      body {
+        padding-top: 80px; /* Adjust according to navbar height */
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container mt-4">
+      <div class="row mb-4">
         <div class="col-md-8">
-            <h1 class="mb-3">{{ subject }} Learning Pathway</h1>
-            <p class="lead">Personalized for {{ learning_style | title }} learning in a {{ study_mode | title }} environment</p>
+          <h1>Your Learning Pathways</h1>
         </div>
-        <div class="col-md-4 text-md-end">
-            <a href="#" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#preferencesModal">
-                <i class="fas fa-sliders-h me-2"></i>Adjust Preferences
-            </a>
+        <div class="col-md-4 text-end">
+          <button
+            type="button"
+            class="btn btn-warning"
+            data-bs-toggle="modal"
+            data-bs-target="#createPathwayModal"
+          >
+            Create New Pathway
+          </button>
         </div>
-    </div>
-</div>
+      </div>
 
-<div class="row">
-    <!-- Left sidebar: Progress, stats, badges -->
-    <div class="col-md-3">
-        <div class="progress-card mb-4">
-            <h5 class="card-title"><i class="fas fa-chart-line me-2"></i>Overall Progress</h5>
-            <div class="progress mb-3" style="height: 10px;">
-                <div class="progress-bar" role="progressbar" style="width: {{ (current_week - 1) / total_weeks * 100 }}%;" 
-                     aria-valuenow="{{ (current_week - 1) / total_weeks * 100 }}" aria-valuemin="0" aria-valuemax="100"></div>
-            </div>
-            <p>Week {{ current_week }} of {{ total_weeks }}</p>
-        </div>
-        
-        <div class="stats-card mb-4">
-            <h5 class="card-title"><i class="fas fa-trophy me-2"></i>Your Stats</h5>
-            <div class="stat-item">
-                <div class="stat-label">Points:</div>
-                <div class="stat-value">{{ progress.total_points }}</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-label">Streak:</div>
-                <div class="stat-value">{{ progress.streak_days }} days</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-label">Badges:</div>
-                <div class="stat-value">{{ progress.badges_earned|length }}</div>
-            </div>
-        </div>
-        
-        <div class="badges-card">
-            <h5 class="card-title"><i class="fas fa-award me-2"></i>Your Badges</h5>
-            {% if progress.badges_earned %}
-                <div class="badges-container">
-                    {% for badge in progress.badges_earned %}
-                        <div class="badge-item">
-                            <div class="badge-icon">
-                                <i class="fas fa-medal"></i>
-                            </div>
-                            <div class="badge-name">{{ badge }}</div>
-                        </div>
-                    {% endfor %}
-                </div>
-            {% else %}
-                <p>Complete your weekly goals to earn badges!</p>
-            {% endif %}
-            
-            {% if week_plan.gamification %}
-                <div class="current-challenge mt-3">
-                    <h6>Current Challenge:</h6>
-                    <p>{{ week_plan.gamification.challenge }}</p>
-                    <div class="badge-preview">
-                        <i class="fas fa-medal"></i>
-                        <span>{{ week_plan.gamification.badge }}</span>
-                    </div>
-                </div>
-            {% endif %}
-        </div>
-    </div>
-    
-    <!-- Main content: Weekly plan -->
-    <div class="col-md-9">
-        <div class="card shadow-sm mb-4">
-            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                <h3 class="mb-0">Week {{ current_week }}: {{ week_plan.topics|join(' & ') }}</h3>
-                <button class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#feedbackModal">
-                    <i class="fas fa-sync-alt me-1"></i>Get Adaptive Recommendations
-                </button>
-            </div>
+      {% if pathways %}
+      <div class="row">
+        {% for pathway in pathways %}
+        <div class="col-md-6 mb-4">
+          <div class="card h-100">
             <div class="card-body">
-                <div class="topics mb-4">
-                    <h4 class="section-title"><i class="fas fa-list me-2"></i>Topics</h4>
-                    <div class="topics-list">
-                        {% for topic in week_plan.topics %}
-                            <div class="topic-item">{{ topic }}</div>
-                        {% endfor %}
-                    </div>
+              <h5 class="card-title">{{ pathway.topic }}</h5>
+              <p class="card-text">Created on: {{ pathway.created_at }}</p>
+              <div class="progress mb-3">
+                <div
+                  class="progress-bar"
+                  role="progressbar"
+                  style="width: {{ pathway.progress_percentage }}%;"
+                  aria-valuenow="{{ pathway.progress_percentage }}"
+                  aria-valuemin="0"
+                  aria-valuemax="100"
+                >
+                  {{ pathway.progress_percentage|round(1) }}%
                 </div>
-                
-                <div class="resources mb-4">
-                    <h4 class="section-title"><i class="fas fa-book me-2"></i>Learning Resources</h4>
-                    <div class="table-responsive">
-                        <table class="table">
-                            <thead>
-                                <tr>
-                                    <th>Resource</th>
-                                    <th>Type</th>
-                                    <th>Duration</th>
-                                    <th>Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for resource in week_plan.resources %}
-                                    {% set resource_id = 'week' ~ current_week ~ '_resource' ~ loop.index0 %}
-                                    {% set completed = resource_id in progress.completion.resources %}
-                                    <tr class="{{ 'table-success' if completed else '' }}">
-                                        <td>
-                                            <a href="{{ resource.url }}" target="_blank" class="resource-link">
-                                                {{ resource.title }}
-                                            </a>
-                                        </td>
-                                        <td>
-                                            <span class="resource-type">
-                                                {% if resource.type == 'visual' or resource.type == 'video' or resource.type == 'infographic' %}
-                                                    <i class="fas fa-play-circle me-1"></i>
-                                                {% elif resource.type == 'auditory' or resource.type == 'podcast' or resource.type == 'audio_lecture' %}
-                                                    <i class="fas fa-headphones me-1"></i>
-                                                {% elif resource.type == 'kinesthetic' or resource.type == 'exercise' or resource.type == 'project' %}
-                                                    <i class="fas fa-laptop-code me-1"></i>
-                                                {% else %}
-                                                    <i class="fas fa-file-alt me-1"></i>
-                                                {% endif %}
-                                                {{ resource.type|title }}
-                                            </span>
-                                        </td>
-                                        <td>{{ resource.duration_minutes }} min</td>
-                                        <td>
-                                            {% if completed %}
-                                                <span class="badge bg-success">Completed</span>
-                                            {% else %}
-                                                <button class="btn btn-sm btn-outline-primary mark-complete-btn" 
-                                                        data-type="resource" data-id="{{ resource_id }}">
-                                                    Mark Complete
-                                                </button>
-                                            {% endif %}
-                                        </td>
-                                    </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                
-                <div class="assessments mb-4">
-                    <h4 class="section-title"><i class="fas fa-tasks me-2"></i>Assessments</h4>
-                    <div class="row">
-                        {% for assessment in week_plan.assessments %}
-                            {% set assessment_id = 'week' ~ current_week ~ '_assessment' ~ loop.index0 %}
-                            {% set completed = assessment_id in progress.completion.assessments %}
-                            <div class="col-md-6 mb-3">
-                                <div class="assessment-card {{ 'completed' if completed else '' }}">
-                                    <div class="assessment-info">
-                                        <h5>{{ assessment.title }}</h5>
-                                        <span class="assessment-type">
-                                            {% if assessment.type == 'quiz' %}
-                                                <i class="fas fa-question-circle me-1"></i>
-                                            {% elif assessment.type == 'project' %}
-                                                <i class="fas fa-code-branch me-1"></i>
-                                            {% elif assessment.type == 'reflection' %}
-                                                <i class="fas fa-pen me-1"></i>
-                                            {% else %}
-                                                <i class="fas fa-clipboard-check me-1"></i>
-                                            {% endif %}
-                                            {{ assessment.type|title }}
-                                        </span>
-                                    </div>
-                                    <div class="assessment-action">
-                                        {% if completed %}
-                                            <span class="badge bg-success">Completed</span>
-                                        {% else %}
-                                            <button class="btn btn-sm btn-outline-primary mark-complete-btn" 
-                                                    data-type="assessment" data-id="{{ assessment_id }}">
-                                                Mark Complete
-                                            </button>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                            </div>
-                        {% endfor %}
-                    </div>
-                </div>
-                
-                <div id="adaptiveRecommendations" class="mb-4 d-none">
-                    <h4 class="section-title"><i class="fas fa-lightbulb me-2"></i>Adaptive Recommendations</h4>
-                    <div class="recommendations-container">
-                        <!-- Recommendations will be added here via JavaScript -->
-                    </div>
-                </div>
+              </div>
+              <p class="card-text">
+                {{ pathway.completed_steps }} of {{ pathway.total_steps }} steps
+                completed
+              </p>
+              <a href="/pathway/{{ pathway.id }}" class="btn btn-warning"
+                >Continue Learning</a
+              >
             </div>
+          </div>
         </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="alert alert-info">
+        You haven't created any learning pathways yet. Get started by creating
+        your first pathway!
+      </div>
+      {% endif %}
     </div>
-</div>
 
-<!-- Preferences Modal -->
-<div class="modal fade" id="preferencesModal" tabindex="-1" aria-labelledby="preferencesModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+    <!-- Create Pathway Modal -->
+    <div
+      class="modal fade"
+      id="createPathwayModal"
+      tabindex="-1"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="preferencesModalLabel">Update Learning Preferences</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <form action="{{ url_for('update_learning_preferences') }}" method="post" id="preferencesForm">
-                    <div class="mb-3">
-                        <label for="learning_style" class="form-label">Learning Style</label>
-                        <select class="form-select" id="learning_style" name="learning_style" required>
-                            <option value="visual" {{ 'selected' if learning_style == 'visual' else '' }}>Visual</option>
-                            <option value="auditory" {{ 'selected' if learning_style == 'auditory' else '' }}>Auditory</option>
-                            <option value="kinesthetic" {{ 'selected' if learning_style == 'kinesthetic' else '' }}>Kinesthetic</option>
-                        </select>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="study_mode" class="form-label">Study Mode</label>
-                        <select class="form-select" id="study_mode" name="study_mode" required>
-                            <option value="solo" {{ 'selected' if study_mode == 'solo' else '' }}>Solo</option>
-                            <option value="group" {{ 'selected' if study_mode == 'group' else '' }}>Group</option>
-                            <option value="interactive" {{ 'selected' if study_mode == 'interactive' else '' }}>Interactive</option>
-                        </select>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="time_commitment" class="form-label">Weekly Time Commitment (hours)</label>
-                        <select class="form-select" id="time_commitment" name="time_commitment" required>
-                            <option value="2" {{ 'selected' if time_commitment == 2 else '' }}>1-3 hours</option>
-                            <option value="5" {{ 'selected' if time_commitment == 5 else '' }}>4-6 hours</option>
-                            <option value="8" {{ 'selected' if time_commitment == 8 else '' }}>7-9 hours</option>
-                            <option value="12" {{ 'selected' if time_commitment == 12 else '' }}>10+ hours</option>
-                        </select>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="motivation_level" class="form-label">Motivation Level</label>
-                        <select class="form-select" id="motivation_level" name="motivation_level" required>
-                            <option value="self-paced" {{ 'selected' if motivation_level == 'self-paced' else '' }}>Self-paced</option>
-                            <option value="structured" {{ 'selected' if motivation_level == 'structured' else '' }}>Structured</option>
-                            <option value="highly-disciplined" {{ 'selected' if motivation_level == 'highly-disciplined' else '' }}>Highly Disciplined</option>
-                        </select>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="submit" form="preferencesForm" class="btn btn-primary">Update and Regenerate Pathway</button>
-            </div>
+          <div class="modal-header">
+            <h5 class="modal-title">Create New Learning Pathway</h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <form id="pathwayForm">
+              <div class="mb-3">
+                <label for="topic" class="form-label"
+                  >What do you want to learn?</label
+                >
+                <input
+                  type="text"
+                  class="form-control"
+                  id="topic"
+                  name="topic"
+                  required
+                />
+              </div>
+              <div class="mb-3">
+                <label for="learning_style" class="form-label"
+                  >Learning Style (Optional)</label
+                >
+                <select
+                  class="form-select"
+                  id="learning_style"
+                  name="learning_style"
+                >
+                  <option value="">Use my preferences</option>
+                  <option value="Visual">Visual</option>
+                  <option value="Auditory">Auditory</option>
+                  <option value="Reading/Writing">Reading/Writing</option>
+                  <option value="Kinesthetic">Kinesthetic</option>
+                </select>
+              </div>
+              <div class="mb-3">
+                <label for="study_time" class="form-label"
+                  >Available Study Time (hours/week) (Optional)</label
+                >
+                <input
+                  type="number"
+                  class="form-control"
+                  id="study_time"
+                  name="study_time"
+                />
+              </div>
+              <div id="generatingMessage" class="d-none">
+                <div class="d-flex justify-content-center">
+                  <div class="spinner-border text-warning" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                  </div>
+                </div>
+                <p class="text-center mt-2">
+                  Generating your personalized learning pathway...
+                </p>
+              </div>
+              <div class="alert alert-danger d-none" id="errorMessage"></div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-warning"
+              data-bs-dismiss="modal"
+            >
+              Cancel
+            </button>
+            <button type="button" class="btn btn-warning" id="generateButton">
+              Generate Pathway
+            </button>
+          </div>
         </div>
+      </div>
     </div>
-</div>
 
-<!-- Feedback Modal -->
-<div class="modal fade" id="feedbackModal" tabindex="-1" aria-labelledby="feedbackModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="feedbackModalLabel">How's your learning experience?</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <form id="feedbackForm">
-                    <div class="mb-3">
-                        <label for="difficulty_rating" class="form-label">How difficult is the content for you?</label>
-                        <div class="rating-container">
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="difficulty_rating" id="difficulty1" value="1">
-                                <label class="form-check-label" for="difficulty1">Too Easy</label>
-                            </div>
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="difficulty_rating" id="difficulty2" value="2">
-                                <label class="form-check-label" for="difficulty2">Easy</label>
-                            </div>
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="difficulty_rating" id="difficulty3" value="3" checked>
-                                <label class="form-check-label" for="difficulty3">Just Right</label>
-                            </div>
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="difficulty_rating" id="difficulty4" value="4">
-                                <label class="form-check-label" for="difficulty4">Challenging</label>
-                            </div>
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="difficulty_rating" id="difficulty5" value="5">
-                                <label class="form-check-label" for="difficulty5">Too Difficult</label>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="interest_rating" class="form-label">How interesting do you find the material?</label>
-                        <div class="rating-container">
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="interest_rating" id="interest1" value="1">
-                                <label class="form-check-label" for="interest1">Boring</label>
-                            </div>
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="interest_rating" id="interest2" value="2">
-                                <label class="form-check-label" for="interest2">Somewhat Dull</label>
-                            </div>
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="interest_rating" id="interest3" value="3" checked>
-                                <label class="form-check-label" for="interest3">Neutral</label>
-                            </div>
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="interest_rating" id="interest4" value="4">
-                                <label class="form-check-label" for="interest4">Interesting</label>
-                            </div>
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="interest_rating" id="interest5" value="5">
-                                <label class="form-check-label" for="interest5">Fascinating</label>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="additional_comments" class="form-label">Additional Comments (Optional)</label>
-                        <textarea class="form-control" id="additional_comments" name="additional_comments" rows="3"></textarea>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" id="submitFeedbackBtn" class="btn btn-primary">Get Recommendations</button>
-            </div>
-        </div>
-    </div>
-</div>
-{% endblock %}
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+      document
+        .getElementById("generateButton")
+        .addEventListener("click", function () {
+          const form = document.getElementById("pathwayForm");
+          const formData = new FormData(form);
 
-{% block scripts %}
-<script>
-    $(document).ready(function() {
-        // Mark complete functionality
-        $('.mark-complete-btn').click(function() {
-            const button = $(this);
-            const type = button.data('type');
-            const id = button.data('id');
-            
-            $.ajax({
-                url: '{{ url_for("mark_complete") }}',
-                method: 'POST',
-                contentType: 'application/json',
-                data: JSON.stringify({
-                    type: type,
-                    id: id
-                }),
-                success: function(response) {
-                    // Update UI to show completed
-                    if (type === 'resource') {
-                        const row = button.closest('tr');
-                        row.addClass('table-success');
-                        button.replaceWith('<span class="badge bg-success">Completed</span>');
-                    } else if (type === 'assessment') {
-                        const card = button.closest('.assessment-card');
-                        card.addClass('completed');
-                        button.replaceWith('<span class="badge bg-success">Completed</span>');
-                    }
-                    
-                    // Update points display
-                    $('.stats-card .stat-value').first().text(response.points);
-                    
-                    // Check if we need to reload the page (if week is complete)
-                    setTimeout(function() {
-                        location.reload();
-                    }, 1500);
-                },
-                error: function(error) {
-                    console.error('Error marking item as complete:', error);
-                    alert('Failed to update progress. Please try again.');
-                }
+          if (!formData.get("topic")) {
+            document.getElementById("errorMessage").textContent =
+              "Please enter a topic to learn.";
+            document.getElementById("errorMessage").classList.remove("d-none");
+            return;
+          }
+
+          document.getElementById("errorMessage").classList.add("d-none");
+          document
+            .getElementById("generatingMessage")
+            .classList.remove("d-none");
+          document.getElementById("generateButton").disabled = true;
+
+          fetch("/generate_pathway", {
+            method: "POST",
+            body: formData,
+          })
+            .then((response) => response.json())
+            .then((data) => {
+              document
+                .getElementById("generatingMessage")
+                .classList.add("d-none");
+              document.getElementById("generateButton").disabled = false;
+
+              if (data.success) {
+                window.location.href = `/pathway/${data.pathway_id}`;
+              } else {
+                document.getElementById("errorMessage").textContent =
+                  data.message;
+                document
+                  .getElementById("errorMessage")
+                  .classList.remove("d-none");
+              }
+            })
+            .catch((error) => {
+              document
+                .getElementById("generatingMessage")
+                .classList.add("d-none");
+              document.getElementById("generateButton").disabled = false;
+              document.getElementById("errorMessage").textContent =
+                "An error occurred. Please try again.";
+              document
+                .getElementById("errorMessage")
+                .classList.remove("d-none");
+              console.error("Error:", error);
             });
         });
-        
-        // Submit feedback and get recommendations
-        $('#submitFeedbackBtn').click(function() {
-            const difficultyRating = $('input[name="difficulty_rating"]:checked').val();
-            const interestRating = $('input[name="interest_rating"]:checked').val();
-            const comments = $('#additional_comments').val();
-            
-            $.ajax({
-                url: '{{ url_for("get_recommendations") }}',
-                method: 'POST',
-                data: {
-                    difficulty_rating: difficultyRating,
-                    interest_rating: interestRating,
-                    comments: comments
-                },
-                success: function(response) {
-                    // Display recommendations
-                    const recommendationsContainer = $('.recommendations-container');
-                    recommendationsContainer.empty();
-                    
-                    if (response.recommendations && response.recommendations.length > 0) {
-                        response.recommendations.forEach(function(rec) {
-                            const recHtml = `
-                                <div class="recommendation-item">
-                                    <div class="recommendation-text">
-                                        <p>${rec.recommendation}</p>
-                                    </div>
-                                    <div class="recommendation-resource">
-                                        <a href="${rec.url}" target="_blank" class="btn btn-sm btn-outline-primary">
-                                            <i class="fas fa-external-link-alt me-1"></i>${rec.resource}
-                                        </a>
-                                    </div>
-                                </div>
-                            `;
-                            recommendationsContainer.append(recHtml);
-                        });
-                        
-                        // Show recommendations section
-                        $('#adaptiveRecommendations').removeClass('d-none');
-                        
-                        // Scroll to recommendations
-                        $('html, body').animate({
-                            scrollTop: $('#adaptiveRecommendations').offset().top - 100
-                        }, 500);
-                        
-                        // Close modal
-                        $('#feedbackModal').modal('hide');
-                    } else {
-                        alert('No recommendations available at this time.');
-                    }
-                },
-                error: function(error) {
-                    console.error('Error getting recommendations:', error);
-                    alert('Failed to get recommendations. Please try again.');
-                }
-            });
-        });
-    });
-</script>
-{% endblock %}
+    </script>
+  </body>
+</html>

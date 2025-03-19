@@ -272,9 +272,7 @@ def intern():
 def upload_download(current_user):
     return render_template('upload_download.html', user=current_user)
 
-@app.errorhandler(404)
-def not_found(error):
-    return render_template('404.html'), 404
+
 
 # Result system 
 @app.route('/manage-results')
